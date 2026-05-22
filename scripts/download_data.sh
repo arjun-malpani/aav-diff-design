@@ -5,8 +5,8 @@
 set -e
 cd "$(dirname "$0")/.."
 
-mkdir -p Data/bryant
-cd Data/bryant
+mkdir -p Data/raw/bryant
+cd Data/raw/bryant
 
 if [ ! -f allseqs_20191230.csv ]; then
     echo "Downloading Bryant et al. AAV2 dataset..."
@@ -28,5 +28,5 @@ else
     echo "Validation chip CSV already present, skipping."
 fi
 
-echo "Done. Files in Data/bryant/:"
+echo "Done. Files in Data/raw/bryant/:"
 ls -lh
