@@ -94,7 +94,7 @@ cleaned data is divided between them.
 
 | Scheme | Diffusion gets | Predictor split | Tests |
 |--------|----------------|-----------------|-------|
-| **A** | 80% (disjoint from predictor) | 15% train / 5% val | In-distribution predictor performance with **no leakage** into the generator's training data. |
+| **A** | 80% (disjoint from predictor) | 15% train / 5% test | In-distribution predictor performance with **no leakage** into the generator's training data. |
 | **B** | 100% of the data | 75% train / 25% test (random) | Maximum generative coverage; in-distribution predictor performance, accepting overlap between generator and predictor data. |
 | **C** | reuses Scheme B's full set | train = non-`*_walked`, test = `*_walked` | **Out-of-distribution** generalization: can a predictor trained on near-wild-type sequences judge model-explored sequences far from it? |
 
@@ -107,3 +107,10 @@ the non-walked train split is ~41% viable, the walked test split ~58%.)
 
 Each scheme directory also contains a `stats.json` with per-split row counts and
 viability fractions.
+
+## Model weights
+
+Training (`Classifier/train.py`) writes checkpoints to `Classifier/weights/`.
+These files are large (the ESM-2 35M checkpoint is ~130 MB, over GitHub's 100 MB
+limit) and are **gitignored** — they are not stored in the repo. Regenerate them
+by running training, or transfer them out-of-band.
