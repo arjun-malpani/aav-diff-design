@@ -94,7 +94,8 @@ def evaluate(model, loader, device):
 def train(scheme, out_path, epochs=3, lr=1e-3, batch_size=32, freeze_backbone=True,
           weight_decay=0.0, train_limit=None, eval_limit=None,
           model_name=MODEL_NAME, device=None, num_workers=0, seed=42,
-          eval_every=1, plot=False, log_dir=None, run_name=None):
+          eval_every=1, plot=False, log_dir=None, run_name=None,
+          early_stop_patience=5, early_stop_metric="test_pearson"):
     """Fine-tune the ESM-2 regressor on one data scheme.
 
     Args:
@@ -147,6 +148,12 @@ def train(scheme, out_path, epochs=3, lr=1e-3, batch_size=32, freeze_backbone=Tr
         )
         print(f"tensorboard logging -> {run_dir}")
 
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    metric_higher_is_better = early_stop_metric in {"test_pearson", "test_spearman"}
+    best_metric = -float("inf") if metric_higher_is_better else float("inf")
+    best_epoch = 0
+    epochs_since_best = 0
+
     history = []
     global_step = 0
     for epoch in range(1, epochs + 1):
@@ -182,10 +189,21 @@ def train(scheme, out_path, epochs=3, lr=1e-3, batch_size=32, freeze_backbone=Tr
                 if k in record:
                     writer.add_scalar(k.replace("_", "/", 1), record[k], epoch)
 
-    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
-    # Save on CPU so checkpoints are portable across devices (mps -> cuda/cpu).
-    torch.save({k: v.cpu() for k, v in model.state_dict().items()}, out_path)
-    print(f"saved weights -> {out_path}")
+        cur = record.get(early_stop_metric)
+        if cur is not None:
+            improved = cur > best_metric if metric_higher_is_better else cur < best_metric
+            if improved:
+                best_metric, best_epoch, epochs_since_best = cur, epoch, 0
+                torch.save({k: v.cpu() for k, v in model.state_dict().items()}, out_path)
+                print(f"  ↳ new best {early_stop_metric}={cur:.4f}, saved -> {out_path}")
+            else:
+                epochs_since_best += 1
+                if early_stop_patience and epochs_since_best >= early_stop_patience:
+                    print(f"early stop: no improvement in {early_stop_patience} epochs "
+                          f"(best {early_stop_metric}={best_metric:.4f} @ epoch {best_epoch})")
+                    break
+
+    print(f"best {early_stop_metric}={best_metric:.4f} @ epoch {best_epoch} -> {out_path}")
 
     if writer is not None:
         writer.close()
@@ -241,6 +259,10 @@ def _parse_args():
                    help="enable tensorboard logging to this directory (e.g. runs/)")
     p.add_argument("--run-name", default=None,
                    help="subdirectory name under --log-dir (default: scheme + timestamp)")
+    p.add_argument("--early-stop-patience", type=int, default=5,
+                   help="stop if metric does not improve for N consecutive epochs (0 disables)")
+    p.add_argument("--early-stop-metric", default="test_pearson",
+                   choices=["test_pearson", "test_spearman", "test_mse", "test_rmse"])
     return p.parse_args()
 
 
@@ -253,6 +275,8 @@ def main():
         eval_limit=args.eval_limit, num_workers=args.num_workers,
         device=args.device, seed=args.seed,
         log_dir=args.log_dir, run_name=args.run_name,
+        early_stop_patience=args.early_stop_patience,
+        early_stop_metric=args.early_stop_metric,
     )
 
 
