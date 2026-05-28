@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 weights/
 *.pt
+.venv/

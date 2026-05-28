@@ -1,0 +1,19 @@
+[project]
+name = "aav-diff-design"
+version = "0.1.0"
+description = "Diffusion-based design of AAV capsid variants."
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "matplotlib>=3.8",
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "torch>=2.5",
+    "tqdm>=4.66",
+    "transformers>=4.44",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29",
+    "jupyter>=1.1",
+]
