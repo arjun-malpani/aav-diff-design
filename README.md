@@ -8,8 +8,8 @@ dataset for training a generator and a viability/fitness predictor.
 ### Quick start
 
 ```bash
-bash scripts/download_data.sh     # fetch raw CSVs into Data/raw/bryant/
-python scripts/preprocess_data.py # write tensors into Data/processed/bryant/
+bash scripts/download_data.sh     # fetch raw CSVs into data/raw/bryant/
+python scripts/preprocess_data.py # write tensors into data/processed/bryant/
 ```
 
 Run preprocessing inside the project's Python environment (the `aav` conda env),
@@ -18,7 +18,7 @@ which has `pandas`, `numpy`, and `torch` installed.
 ### Layout
 
 ```
-Data/
+data/
 ├── raw/
 │   └── bryant/
 │       ├── allseqs_20191230.csv          # main sequence dataset
@@ -34,9 +34,9 @@ Each `.pt` file holds a single tensor and loads directly:
 
 ```python
 import torch
-seq    = torch.load("Data/processed/bryant/scheme_a/diffusion_seq.pt")    # [N, L] int64, 0 = padding
-score  = torch.load("Data/processed/bryant/scheme_a/diffusion_score.pt")  # [N]   float32 (viral_selection)
-viable = torch.load("Data/processed/bryant/scheme_a/diffusion_viable.pt") # [N]   float32 (0.0 / 1.0)
+seq    = torch.load("data/processed/bryant/scheme_a/diffusion_seq.pt")    # [N, L] int64, 0 = padding
+score  = torch.load("data/processed/bryant/scheme_a/diffusion_score.pt")  # [N]   float32 (viral_selection)
+viable = torch.load("data/processed/bryant/scheme_a/diffusion_viable.pt") # [N]   float32 (0.0 / 1.0)
 ```
 
 ### Common preprocessing
@@ -110,7 +110,7 @@ viability fractions.
 
 ## Model weights
 
-Training (`Classifier/train.py`) writes checkpoints to `Classifier/weights/`.
+Training (`classifier/train.py`) writes checkpoints to `classifier/weights/`.
 These files are large (the ESM-2 35M checkpoint is ~130 MB, over GitHub's 100 MB
 limit) and are **gitignored** — they are not stored in the repo. Regenerate them
 by running training, or transfer them out-of-band.
