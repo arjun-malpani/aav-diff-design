@@ -1,5 +1,5 @@
 .DS_Store
-Data/
+data/
 .vscode/
 __pycache__/
 *.pyc

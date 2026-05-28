@@ -14,7 +14,7 @@ from transformers import EsmForSequenceClassification
 MODEL_NAME = "facebook/esm2_t12_35M_UR50D"  # ESM-2, 35M params
 
 ROOT = Path(__file__).resolve().parent.parent
-PROCESSED = ROOT / "Data" / "processed" / "bryant"
+PROCESSED = ROOT / "data" / "processed" / "bryant"
 
 # The held-out split is named "test" in every scheme.
 EVAL_SPLIT = {"a": "predictor_test", "b": "predictor_test", "c": "predictor_test"}

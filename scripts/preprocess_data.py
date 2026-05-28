@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """Preprocess the Bryant AAV dataset into train/eval schemes.
 
-Reads Data/raw/bryant/allseqs_20191230.csv, applies common cleaning, then
-writes three schemes to Data/processed/bryant/. Sequences are saved raw (a
+Reads data/raw/bryant/allseqs_20191230.csv, applies common cleaning, then
+writes three schemes to data/processed/bryant/. Sequences are saved raw (a
 list of amino-acid strings) so tokenization can happen downstream; the
 labels (viral_selection, is_viable) are saved as tensors. A tokenizer.json
 mapping is still emitted for that later tokenization step.
@@ -16,8 +16,8 @@ import pandas as pd
 import torch
 
 ROOT = Path(__file__).resolve().parent.parent
-RAW = ROOT / "Data" / "raw" / "bryant" / "allseqs_20191230.csv"
-OUT = ROOT / "Data" / "processed" / "bryant"
+RAW = ROOT / "data" / "raw" / "bryant" / "allseqs_20191230.csv"
+OUT = ROOT / "data" / "processed" / "bryant"
 
 SEED = 42
 DROP_PARTITIONS = ["stop", "wild_type", "previous_chip_viable", "previous_chip_nonviable"]
