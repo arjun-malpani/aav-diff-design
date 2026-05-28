@@ -23,9 +23,11 @@ GPU machine:
 import argparse
 import os
 import random
+from datetime import datetime
 
 import numpy as np
 import torch
+from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer
 
@@ -92,7 +94,7 @@ def evaluate(model, loader, device):
 def train(scheme, out_path, epochs=3, lr=1e-3, batch_size=32, freeze_backbone=True,
           weight_decay=0.0, train_limit=None, eval_limit=None,
           model_name=MODEL_NAME, device=None, num_workers=0, seed=42,
-          eval_every=1, plot=False):
+          eval_every=1, plot=False, log_dir=None, run_name=None):
     """Fine-tune the ESM-2 regressor on one data scheme.
 
     Args:
@@ -133,7 +135,20 @@ def train(scheme, out_path, epochs=3, lr=1e-3, batch_size=32, freeze_backbone=Tr
 
     optimizer = torch.optim.AdamW(trainable, lr=lr, weight_decay=weight_decay)
 
+    writer = None
+    if log_dir is not None:
+        run_name = run_name or f"scheme_{scheme}_{datetime.now():%Y%m%d-%H%M%S}"
+        run_dir = os.path.join(log_dir, run_name)
+        writer = SummaryWriter(run_dir)
+        writer.add_hparams(
+            {"scheme": scheme, "lr": lr, "batch_size": batch_size, "epochs": epochs,
+             "freeze_backbone": freeze_backbone, "weight_decay": weight_decay},
+            {},
+        )
+        print(f"tensorboard logging -> {run_dir}")
+
     history = []
+    global_step = 0
     for epoch in range(1, epochs + 1):
         model.train()
         if freeze_backbone:
@@ -146,7 +161,11 @@ def train(scheme, out_path, epochs=3, lr=1e-3, batch_size=32, freeze_backbone=Tr
                 out = model(**batch)
             out.loss.backward()
             optimizer.step()
-            batch_losses.append(out.loss.item())
+            loss = out.loss.item()
+            batch_losses.append(loss)
+            if writer is not None:
+                writer.add_scalar("train/loss_step", loss, global_step)
+            global_step += 1
 
         record = {"epoch": epoch, "train_loss": float(np.mean(batch_losses))}
         if epoch % eval_every == 0 or epoch == epochs:
@@ -157,11 +176,19 @@ def train(scheme, out_path, epochs=3, lr=1e-3, batch_size=32, freeze_backbone=Tr
             msg += (f" | test_rmse={record['test_rmse']:.4f}"
                     f" pearson={record['test_pearson']:.4f} spearman={record['test_spearman']:.4f}")
         print(msg)
+        if writer is not None:
+            writer.add_scalar("train/loss_epoch", record["train_loss"], epoch)
+            for k in ("test_mse", "test_rmse", "test_pearson", "test_spearman"):
+                if k in record:
+                    writer.add_scalar(k.replace("_", "/", 1), record[k], epoch)
 
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
     # Save on CPU so checkpoints are portable across devices (mps -> cuda/cpu).
     torch.save({k: v.cpu() for k, v in model.state_dict().items()}, out_path)
     print(f"saved weights -> {out_path}")
+
+    if writer is not None:
+        writer.close()
 
     if plot:
         plot_history(history)
@@ -210,6 +237,10 @@ def _parse_args():
     p.add_argument("--num-workers", type=int, default=0)
     p.add_argument("--device", default=None)
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--log-dir", default=None,
+                   help="enable tensorboard logging to this directory (e.g. runs/)")
+    p.add_argument("--run-name", default=None,
+                   help="subdirectory name under --log-dir (default: scheme + timestamp)")
     return p.parse_args()
 
 
@@ -221,6 +252,7 @@ def main():
         weight_decay=args.weight_decay, train_limit=args.train_limit,
         eval_limit=args.eval_limit, num_workers=args.num_workers,
         device=args.device, seed=args.seed,
+        log_dir=args.log_dir, run_name=args.run_name,
     )
 
 

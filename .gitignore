@@ -6,3 +6,5 @@ __pycache__/
 weights/
 *.pt
 .venv/
+runs/
+logs/
