@@ -70,11 +70,13 @@ def spearman(x, y):
 @torch.no_grad()
 def evaluate(model, loader, device):
     model.eval()
+    use_amp = device.type == "cuda"
     preds, targets = [], []
     for batch in loader:
-        batch = {k: v.to(device) for k, v in batch.items()}
-        out = model(**batch)
-        preds.append(out.logits.squeeze(-1).cpu())
+        batch = {k: v.to(device, non_blocking=True) for k, v in batch.items()}
+        with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=use_amp):
+            out = model(**batch)
+        preds.append(out.logits.float().squeeze(-1).cpu())
         targets.append(batch["labels"].cpu())
     preds = torch.cat(preds)
     targets = torch.cat(targets)
@@ -108,6 +110,9 @@ def train(scheme, out_path, epochs=3, lr=1e-3, batch_size=32, freeze_backbone=Tr
     """
     set_seed(seed)
     device = get_device(device)
+    use_amp = device.type == "cuda"
+    if use_amp:
+        torch.set_float32_matmul_precision("high")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     train_loader = get_dataloader(scheme, "predictor_train", tokenizer, batch_size,
@@ -135,9 +140,10 @@ def train(scheme, out_path, epochs=3, lr=1e-3, batch_size=32, freeze_backbone=Tr
             model.esm.eval()  # keep frozen backbone's dropout/stats fixed
         batch_losses = []
         for batch in tqdm(train_loader, desc=f"epoch {epoch}/{epochs}", leave=False):
-            batch = {k: v.to(device) for k, v in batch.items()}
-            optimizer.zero_grad()
-            out = model(**batch)
+            batch = {k: v.to(device, non_blocking=True) for k, v in batch.items()}
+            optimizer.zero_grad(set_to_none=True)
+            with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=use_amp):
+                out = model(**batch)
             out.loss.backward()
             optimizer.step()
             batch_losses.append(out.loss.item())
