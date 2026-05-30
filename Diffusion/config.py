@@ -7,9 +7,10 @@ overlay (as in Classifier/train.py) can be added per stage for CLI runs.
 Currently populated:
   - TokenizerConfig  (consumed by Diffusion/tokenizer.py)
   - ModelConfig      (consumed by the embedding stem / transformer, next step)
+  - DiffusionConfig  (corruption kernel + noise schedule)
 
-Groups added in later stages: DiffusionConfig (corruption kernel + noise
-schedule), SamplerConfig (decoding rule / temperature / guidance), TrainConfig.
+Groups added in later stages: SamplerConfig (decoding rule / temperature /
+guidance), TrainConfig.
 """
 from dataclasses import dataclass, field
 
@@ -57,6 +58,22 @@ class ModelConfig:
 
 
 @dataclass
+class DiffusionConfig:
+    """Forward corruption process: noise schedule + corruption kernel.
+
+    DECISION POINT (corruption kernel): `absorbing` (the default) corrupts tokens
+    to a dedicated [mask] state; `uniform` would instead corrupt to a random
+    amino acid. Absorbing consistently wins among discrete methods on text and
+    proteins (Sahoo 2024; Lou 2024; Austin 2021; Alamdari 2023). A contrary claim
+    that uniform can be competitive at small vocab sizes is treated as an
+    UNRESOLVED ABLATION, not a settled fact. Only absorbing is wired up so far.
+    """
+    schedule: str = "linear"     # see Diffusion/schedule.py (only 'linear' implemented)
+    kernel: str = "absorbing"    # 'absorbing' (default) | 'uniform' (not yet implemented)
+
+
+@dataclass
 class Config:
     tokenizer: TokenizerConfig = field(default_factory=TokenizerConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
+    diffusion: DiffusionConfig = field(default_factory=DiffusionConfig)
