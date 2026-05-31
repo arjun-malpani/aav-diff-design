@@ -191,6 +191,64 @@ Sampler dials (defaults in `config.py:SamplerConfig`): `--steps` (reverse steps)
    gap). Multi-residue insertions (e.g. AAV2.7m8's 10-mer) require raising
    `insertions_per_gap`.
 
+## Evaluating the generator (`eval/`)
+
+The eval suite scores generated sequences with the held-out ESM-2 + MLP fitness
+predictor (used ONLY as a judge — never as a guidance signal, never fine-tuned —
+so evaluation stays uncircular) and produces the figures for the report. Edit
+distance is true Levenshtein; the distribution metrics use the 28 canvas **anchor**
+slots, which are already aligned to wild type, so no MSA step is needed.
+
+**Prerequisites:**
+- A trained diffusion checkpoint at `diffusion/weights/diffusion.pt` (committed).
+- A trained predictor at `Classifier/weights/<judge>.pt`. The eval loads
+  `ghost_a.pt` by default (set `CLASSIFIER_CKPT` in `eval/common.py`); these
+  weights are gitignored, so obtain them out-of-band or retrain
+  (`python Classifier/train.py --scheme b --full-finetune --out Classifier/weights/esm35m_b.pt`).
+- Extra deps (already in `pyproject.toml`): `scikit-learn`, `scipy`, `rapidfuzz`.
+
+**Run everything** (from the repo root, inside the `aav` env):
+
+```bash
+# full run: n=1500 per cohort, 256 reverse steps, guidance sweep w in {1,2,4,8}
+python eval/run_all.py
+
+# quick correctness check (tiny n, few steps) — produces all figures fast
+python eval/run_all.py --smoke
+
+# one preset only, or override scale / device
+python eval/run_all.py --preset diverse -n 1500 --steps 256 --device mps
+```
+
+This generates the cohorts once per **sampler preset** and writes 8 figures to
+`eval/figures/<preset>/`:
+
+| Preset | Sampler | Character |
+|--------|---------|-----------|
+| `diverse` | random decoding, sampled commits, τ=1.0 | exploratory (default sampler) |
+| `precise` | confidence (MaskGIT) decoding, τ=0.8 | mode-seeking, lower diversity |
+
+Both presets share the training reference, random baseline, and RNG seed, so the
+only difference between the two folders is the sampler.
+
+**Figures produced (per preset):**
+
+| File | What it shows |
+|------|---------------|
+| `viability.png` | fraction predicted viable by cohort + viability vs. divergence (AAVDiff Fig 2 style) |
+| `diversity.png` | mutation-count / length / novelty histograms (conditioned cohort) |
+| `diversity_by_cohort.png` | internal diversity (mean pairwise edit distance) per cohort |
+| `scatter_by_w.png` | per-sequence novelty vs. fitness, colored by guidance scale *w* |
+| `scatter_by_cohort.png` | per-sequence novelty vs. fitness, colored by cohort |
+| `distribution_entropy.png` | per-anchor conservation, generated vs. real viable (Pearson *r*) |
+| `distribution_jsd.png` | per-anchor amino-acid composition divergence (JSD) |
+| `distribution_tsne.png` | sequence-space overlap, generated vs. real viable (t-SNE) |
+
+Cohorts: **conditioned** (CFG toward high fitness, shown at w=2 and w=4),
+**unconditional** (CFG null path), **random** (random mutations of WT), and
+**training** (real Bryant viable sequences). On MPS the full two-preset run takes
+roughly 1–2 hours; it is comfortable on a GPU.
+
 ## Model weights
 
 Training (`classifier/train.py`) writes checkpoints to `classifier/weights/`.
