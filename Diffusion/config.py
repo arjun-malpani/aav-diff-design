@@ -6,11 +6,11 @@ overlay (as in Classifier/train.py) can be added per stage for CLI runs.
 
 Currently populated:
   - TokenizerConfig  (consumed by Diffusion/tokenizer.py)
-  - ModelConfig      (consumed by the embedding stem / transformer, next step)
+  - ModelConfig      (consumed by the embedding stem / transformer)
   - DiffusionConfig  (corruption kernel + noise schedule)
+  - TrainConfig      (consumed by Diffusion/train.py)
 
-Groups added in later stages: SamplerConfig (decoding rule / temperature /
-guidance), TrainConfig.
+Groups added in later stages: SamplerConfig (decoding rule / temperature / guidance).
 """
 from dataclasses import dataclass, field
 
@@ -78,7 +78,32 @@ class DiffusionConfig:
 
 
 @dataclass
+class TrainConfig:
+    """Training hyperparameters.
+
+    The optimizer recipe (lr, warmup fraction, weight decay, linear LR decay)
+    follows AAVDiff (Liu 2024, Supp. p.14). batch_size, grad_clip, val_frac, and
+    the early-stopping settings are ours -- AAVDiff did not report them. `epochs`
+    is a high cap; early stopping on held-out validation loss decides the real
+    stopping point (from-scratch regularization, per the project spec).
+
+    Weight decay is applied only to matmul weights, never to biases, the (affine-
+    free) LayerNorms, or the embeddings -- see build_optimizer in train.py.
+    """
+    lr: float = 1e-4
+    weight_decay: float = 0.04
+    warmup_frac: float = 0.1       # fraction of total steps spent ramping LR up
+    batch_size: int = 256
+    grad_clip: float = 1.0         # max global grad norm (0 disables)
+    epochs: int = 100              # cap; early stopping usually ends it sooner
+    val_frac: float = 0.05         # held-out fraction for val-loss early stopping
+    early_stop_patience: int = 5   # stop after N epochs without val-loss improvement (0 disables)
+    seed: int = 42
+
+
+@dataclass
 class Config:
     tokenizer: TokenizerConfig = field(default_factory=TokenizerConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
     diffusion: DiffusionConfig = field(default_factory=DiffusionConfig)
+    train: TrainConfig = field(default_factory=TrainConfig)
