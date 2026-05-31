@@ -108,9 +108,96 @@ the non-walked train split is ~41% viable, the walked test split ~58%.)
 Each scheme directory also contains a `stats.json` with per-split row counts and
 viability fractions.
 
+## Generating sequences (Diffusion)
+
+An **absorbing-state discrete diffusion** model (MDLM-style, continuous time) that
+generates VR-VIII sequences conditioned on a target fitness via **classifier-free
+guidance**. Variants are encoded on a fixed **L=56 canvas** (28 substitution slots
+interleaved with 28 insertion slots) so insertions stay aligned to the wild-type
+scaffold. The network is a ~25M-param bidirectional Transformer with AdaLN-Zero
+conditioning on the diffusion timestep and the fitness scalar. It is trained from
+scratch on the full cleaned distribution (viable + non-viable, so the
+classifier-free-guidance unconditional path sees the whole landscape); the ESM-2
+predictor is used only as a held-out judge, never as a guidance signal.
+
+All commands run from the `Diffusion/` directory, inside the `aav` conda env. Every
+flag lives in `Diffusion/config.py`.
+
+**Step 1 — Pre-tokenize the dataset** (raw CSV → canvas tensors). Run once. It reads
+the *case-preserving* raw CSV (insertions are lowercase there, so this cannot use
+the upper-cased `scheme_*` tensors), encodes every variant onto the canvas, and
+writes `data/processed/bryant/diffusion/`:
+
+```bash
+cd Diffusion
+python preprocess.py
+```
+
+This produces `canvas.pt` (`[N, 56]` int64 token ids), `score.pt`, `viable.pt`,
+`tokenizer.json`, and `fitness_stats.json` — the frozen mean/std used to
+standardize the conditioning scalar identically at train and sample time. Rows the
+canvas cannot represent (≈0.1%, a leading insertion before the first anchor) are
+skipped and logged.
+
+**Step 2 — Train the generator.** Early-stops on held-out validation loss (masked
+cross-entropy) and saves the best checkpoint. TensorBoard logging is opt-in via
+`--log-dir`:
+
+```bash
+# quick local sanity check (subsample + a few epochs)
+python train.py --train-limit 4096 --epochs 5
+
+# full run with TensorBoard logging
+python train.py --epochs 100 --log-dir runs/ --out weights/diffusion.pt
+```
+
+Common overrides (defaults in `config.py:TrainConfig`, optimizer recipe from
+AAVDiff): `--lr`, `--batch-size`, `--weight-decay`, `--warmup-frac`, `--grad-clip`,
+`--val-frac`, `--early-stop-patience`.
+
+**Step 3 — Generate sequences** from a trained checkpoint:
+
+```bash
+# 20 sequences targeting high fitness, with guidance
+python denoising.py -n 20 --fitness 5 --guidance 2 --decoding confidence
+
+# unconditional baseline (omit --fitness)
+python denoising.py -n 20
+```
+
+`--fitness` is a target in raw `viral_selection` units (standardized internally).
+Sampler dials (defaults in `config.py:SamplerConfig`): `--steps` (reverse steps),
+`--guidance` (CFG scale *w*; 1.0 = off), `--temperature` (*tau*), `--decoding`
+(`random` = more diverse | `confidence` = more precise, MaskGIT-style).
+
+**Component → config mapping** (`Diffusion/config.py`):
+
+| Component | File | Config group |
+|-----------|------|--------------|
+| Vocab + L=56 canvas | `tokenizer.py` | `TokenizerConfig` |
+| Transformer + conditioning | `network_modules.py` | `ModelConfig` |
+| Noise schedule + corruption kernel | `schedule.py`, `diffusion.py` | `DiffusionConfig` |
+| Training loop | `train.py` | `TrainConfig` |
+| Reverse sampler | `denoising.py` | `SamplerConfig` |
+
+**Unresolved decision points** (left as config knobs, not hardcoded):
+
+1. **Corruption kernel** (`DiffusionConfig.kernel`) — defaults to `absorbing`
+   (consistently strong on text/proteins). The contrary claim that `uniform` can be
+   competitive at small vocab sizes is treated as an open ablation; only absorbing
+   is wired up so far.
+2. **Canvas size** (`TokenizerConfig.n_anchor`, `insertions_per_gap`) — defaults to
+   28 / 1 (→ L=56), which covers 100% of the Bryant data (never >1 insertion per
+   gap). Multi-residue insertions (e.g. AAV2.7m8's 10-mer) require raising
+   `insertions_per_gap`.
+
 ## Model weights
 
 Training (`classifier/train.py`) writes checkpoints to `classifier/weights/`.
 These files are large (the ESM-2 35M checkpoint is ~130 MB, over GitHub's 100 MB
 limit) and are **gitignored** — they are not stored in the repo. Regenerate them
 by running training, or transfer them out-of-band.
+
+The diffusion generator (`Diffusion/train.py`) writes its best checkpoint to
+`Diffusion/weights/diffusion.pt` (~100 MB at the default ~25M params), also
+gitignored. Regenerate by running training (Step 2 above).
