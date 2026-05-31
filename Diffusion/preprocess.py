@@ -12,6 +12,7 @@ so the classifier-free-guidance unconditional path sees the whole landscape.
 
 Run:  python preprocess.py     (from the Diffusion/ directory)
 """
+import json
 import sys
 from pathlib import Path
 
@@ -27,6 +28,10 @@ from config import TokenizerConfig
 from tokenizer import AAVTokenizer
 
 OUT = ROOT / "data" / "processed" / "bryant" / "diffusion"
+
+# Standardized fitness is clamped to +/- this many std devs before conditioning, so
+# the rare tails (scores reach ~-11) don't dominate the Fourier features.
+FITNESS_CLAMP = 4.0
 
 
 def main() -> None:
@@ -49,17 +54,27 @@ def main() -> None:
     score = torch.tensor(scores, dtype=torch.float32)
     viable = torch.tensor(viables, dtype=torch.float32)
 
+    # Fitness standardization stats, computed on the diffusion training scores.
+    # These are a FROZEN artifact: training and sampling must standardize fitness
+    # with identical mean/std or classifier-free guidance drifts. The clamp is
+    # applied to the standardized value at use time (see DataLoading.py), not here.
+    fitness_stats = {"mean": float(score.mean()), "std": float(score.std()),
+                     "clamp": FITNESS_CLAMP}
+
     OUT.mkdir(parents=True, exist_ok=True)
     torch.save(canvas, OUT / "canvas.pt")
     torch.save(score, OUT / "score.pt")
     torch.save(viable, OUT / "viable.pt")
     tokenizer.save(OUT / "tokenizer.json")
+    (OUT / "fitness_stats.json").write_text(json.dumps(fitness_stats, indent=2))
 
     kept = canvas.shape[0]
     print(f"encoded {kept:,} sequences onto canvas {tuple(canvas.shape)} "
           f"(vocab={tokenizer.vocab_size}); skipped {skipped:,} unrepresentable")
     print(f"  score range [{score.min():.3f}, {score.max():.3f}], "
           f"viable_frac={viable.mean():.4f}")
+    print(f"  fitness stats: mean={fitness_stats['mean']:.4f} std={fitness_stats['std']:.4f} "
+          f"clamp=+/-{FITNESS_CLAMP} std")
     print(f"  saved -> {OUT}")
 
 

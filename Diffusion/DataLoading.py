@@ -5,8 +5,14 @@ Loads the pre-tokenized canvas tensors written by preprocess.py (raw sequences
 for conditioning. Pre-tokenizing once keeps training fast and side-steps the
 case-loss in the classifier's processed *_seq.pt tensors.
 
+Fitness is STANDARDIZED here (z = (score - mean) / std, clamped to +/- clamp std)
+using the frozen stats from preprocess.py, so the network's Fourier conditioning
+sees a well-scaled ~N(0, 1) scalar. The same standardize_fitness() is used at
+sampling time to turn a requested target into the conditioning value.
+
 Run preprocess.py first to create the tensors this module loads.
 """
+import json
 from pathlib import Path
 
 import torch
@@ -16,13 +22,26 @@ ROOT = Path(__file__).resolve().parent.parent
 DIFFUSION_DATA = ROOT / "data" / "processed" / "bryant" / "diffusion"
 
 
-class CanvasDataset(Dataset):
-    """Pre-tokenized canvases + fitness scores for diffusion training."""
+def load_fitness_stats(data_dir=DIFFUSION_DATA):
+    """Frozen {mean, std, clamp} for fitness standardization (from preprocess.py)."""
+    return json.loads((Path(data_dir) / "fitness_stats.json").read_text())
 
-    def __init__(self, data_dir=DIFFUSION_DATA):
+
+def standardize_fitness(score, stats):
+    """z = clamp((score - mean) / std, -clamp, +clamp). Accepts a float or tensor."""
+    z = (score - stats["mean"]) / stats["std"]
+    return z.clamp(-stats["clamp"], stats["clamp"]) if torch.is_tensor(z) \
+        else max(-stats["clamp"], min(stats["clamp"], z))
+
+
+class CanvasDataset(Dataset):
+    """Pre-tokenized canvases + standardized fitness scores for diffusion training."""
+
+    def __init__(self, data_dir=DIFFUSION_DATA, standardize=True):
         data_dir = Path(data_dir)
         self.canvas = torch.load(data_dir / "canvas.pt", weights_only=False)
-        self.score = torch.load(data_dir / "score.pt", weights_only=False).float()
+        score = torch.load(data_dir / "score.pt", weights_only=False).float()
+        self.score = standardize_fitness(score, load_fitness_stats(data_dir)) if standardize else score
 
     def __len__(self):
         return self.canvas.shape[0]
@@ -36,7 +55,7 @@ def get_dataloader(batch_size=128, shuffle=True, data_dir=DIFFUSION_DATA, num_wo
 
     Each batch is (canvas, score):
         canvas: LongTensor  (batch_size, canvas_len)  token ids on the canvas
-        score:  FloatTensor (batch_size,)             viral_selection fitness
+        score:  FloatTensor (batch_size,)             standardized fitness (~N(0, 1))
     """
     dataset = CanvasDataset(data_dir)
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle,

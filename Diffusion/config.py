@@ -44,17 +44,22 @@ class TokenizerConfig:
 class ModelConfig:
     """Bidirectional Transformer encoder + embedding stem (x0-parameterization).
 
-    Kept modest on purpose: trained from scratch on a small, low-complexity
-    corpus, so over-capacity memorizes (Bryant's own nets were 55K-129K params).
-    Only `hidden` / `dropout` / `blosum_init` are consumed by the embedding stem;
-    depth / heads / ffn are defined now for the transformer next step.
+    These dims target ~24M parameters (printed at model init). That is well under
+    AAVDiff's ~65M (12 layers / 512 hidden / 4096 ffn) but larger than a minimal
+    from-scratch baseline -- so the from-scratch regularization (weight decay,
+    dropout, early stopping, optional augmentation) matters at this size: watch the
+    train/val gap for memorization. All dims are knobs; scale down if it overfits.
     """
-    hidden: int = 256
-    depth: int = 8
-    heads: int = 8
-    ffn: int = 1024
+    hidden: int = 384
+    depth: int = 9
+    heads: int = 12          # head dim = hidden / heads = 32
+    ffn: int = 1536          # 4 x hidden
     dropout: float = 0.1
     blosum_init: bool = True  # seed AA token-embedding geometry from BLOSUM62 (Henikoff 1992)
+
+    # --- conditioning (timestep + fitness, injected via AdaLN-Zero) ---
+    fourier_num_frequencies: int = 128  # sinusoids per scalar; conditioning sees 2*128 features
+    cfg_dropout_prob: float = 0.15      # CFG: fraction of training steps with fitness -> null embedding
 
 
 @dataclass

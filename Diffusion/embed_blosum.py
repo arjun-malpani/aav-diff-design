@@ -92,25 +92,22 @@ class SequenceEmbedding(nn.Module):
 
     def __init__(self, model_config: ModelConfig, tokenizer_config: TokenizerConfig):
         super().__init__()
-        self.amino_acids = tokenizer_config.amino_acids
-        vocab_size = len(self.amino_acids) + 2          # 20 AAs + [gap] + [mask]
-        canvas_len = tokenizer_config.canvas_len
+        amino_acids = tokenizer_config.amino_acids
+        vocab_size = len(amino_acids) + 2          # 20 AAs + [gap] + [mask]
         hidden = model_config.hidden
 
         self.token_embedding = nn.Embedding(vocab_size, hidden)
-        self.position_embedding = nn.Parameter(torch.randn(1, canvas_len, hidden) * EMB_INIT_STD)
+        self.position_embedding = nn.Parameter(
+            torch.randn(1, tokenizer_config.canvas_len, hidden) * EMB_INIT_STD)
         self.dropout = nn.Dropout(model_config.dropout)
 
         nn.init.normal_(self.token_embedding.weight, std=EMB_INIT_STD)
         if model_config.blosum_init:
-            self._apply_blosum_init(hidden)
-
-    def _apply_blosum_init(self, hidden: int) -> None:
-        vectors = blosum62_init(self.amino_acids, hidden) * EMB_INIT_STD
-        with torch.no_grad():
-            n_aa = len(self.amino_acids)  # rows 0..19; [gap]/[mask] rows left as-is
-            self.token_embedding.weight[:n_aa] = torch.as_tensor(
-                vectors, dtype=self.token_embedding.weight.dtype)
+            # seed the 20 amino-acid rows; [gap]/[mask] have no biochemistry, leave them random
+            vectors = blosum62_init(amino_acids, hidden) * EMB_INIT_STD
+            with torch.no_grad():
+                self.token_embedding.weight[:len(amino_acids)] = torch.as_tensor(
+                    vectors, dtype=self.token_embedding.weight.dtype)
 
     def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
         x = self.token_embedding(token_ids) + self.position_embedding
