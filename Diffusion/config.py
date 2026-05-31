@@ -9,8 +9,7 @@ Currently populated:
   - ModelConfig      (consumed by the embedding stem / transformer)
   - DiffusionConfig  (corruption kernel + noise schedule)
   - TrainConfig      (consumed by Diffusion/train.py)
-
-Groups added in later stages: SamplerConfig (decoding rule / temperature / guidance).
+  - SamplerConfig    (consumed by Diffusion/denoising.py)
 """
 from dataclasses import dataclass, field
 
@@ -102,8 +101,31 @@ class TrainConfig:
 
 
 @dataclass
+class SamplerConfig:
+    """Reverse-diffusion sampling dials (see Diffusion/denoising.py).
+
+    num_steps is the number of reverse steps N along continuous time [1 -> 0];
+    because the model is continuous-time, N is chosen here at sampling time, not
+    baked in at training. More steps -> higher quality, slower. For "confidence"
+    decoding, N up to canvas_len (56) is efficient; beyond that some steps commit
+    nothing.
+
+    guidance_scale w applies classifier-free guidance in logit space
+    (l = l_uncond + w*(l_cond - l_uncond)); w=1 disables guidance, higher w pushes
+    harder toward the fitness target at some cost to diversity. temperature tau
+    sharpens (<1) or flattens (>1) the per-position categorical before sampling.
+    """
+    num_steps: int = 128
+    guidance_scale: float = 2.0      # w; 1.0 = no guidance
+    temperature: float = 1.0         # tau
+    decoding: str = "random"         # "random" (schedule posterior) | "confidence" (MaskGIT top-k)
+    commit: str = "sample"           # "sample" (default, preserves diversity) | "argmax"
+
+
+@dataclass
 class Config:
     tokenizer: TokenizerConfig = field(default_factory=TokenizerConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
     diffusion: DiffusionConfig = field(default_factory=DiffusionConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
+    sampler: SamplerConfig = field(default_factory=SamplerConfig)
