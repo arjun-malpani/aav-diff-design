@@ -120,8 +120,8 @@ scratch on the full cleaned distribution (viable + non-viable, so the
 classifier-free-guidance unconditional path sees the whole landscape); the ESM-2
 predictor is used only as a held-out judge, never as a guidance signal.
 
-All commands run from the `Diffusion/` directory, inside the `aav` conda env. Every
-flag lives in `Diffusion/config.py`.
+All commands run from the `diffusion/` directory, inside the `aav` conda env. Every
+flag lives in `diffusion/config.py`.
 
 **Step 1 — Pre-tokenize the dataset** (raw CSV → canvas tensors). Run once. It reads
 the *case-preserving* raw CSV (insertions are lowercase there, so this cannot use
@@ -129,7 +129,7 @@ the upper-cased `scheme_*` tensors), encodes every variant onto the canvas, and
 writes `data/processed/bryant/diffusion/`:
 
 ```bash
-cd Diffusion
+cd diffusion
 python preprocess.py
 ```
 
@@ -170,7 +170,7 @@ Sampler dials (defaults in `config.py:SamplerConfig`): `--steps` (reverse steps)
 `--guidance` (CFG scale *w*; 1.0 = off), `--temperature` (*tau*), `--decoding`
 (`random` = more diverse | `confidence` = more precise, MaskGIT-style).
 
-**Component → config mapping** (`Diffusion/config.py`):
+**Component → config mapping** (`diffusion/config.py`):
 
 | Component | File | Config group |
 |-----------|------|--------------|
@@ -198,6 +198,8 @@ These files are large (the ESM-2 35M checkpoint is ~130 MB, over GitHub's 100 MB
 limit) and are **gitignored** — they are not stored in the repo. Regenerate them
 by running training, or transfer them out-of-band.
 
-The diffusion generator (`Diffusion/train.py`) writes its best checkpoint to
-`Diffusion/weights/diffusion.pt` (~100 MB at the default ~25M params), also
-gitignored. Regenerate by running training (Step 2 above).
+The diffusion generator (`diffusion/train.py`) writes its best checkpoint to
+`diffusion/weights/diffusion.pt` (~95 MB at the default ~25M params). This one
+checkpoint is committed (it fits under GitHub's 100 MB limit), so the trained
+generator is available without retraining; force-added past the `*.pt`/`weights/`
+gitignore. Regenerate by running training (Step 2 above) if you change the model.
