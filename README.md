@@ -201,9 +201,10 @@ slots, which are already aligned to wild type, so no MSA step is needed.
 
 **Prerequisites:**
 - A trained diffusion checkpoint at `diffusion/weights/diffusion.pt` (committed).
-- A trained predictor at `Classifier/weights/<judge>.pt`. The eval loads
-  `ghost_a.pt` by default (set `CLASSIFIER_CKPT` in `eval/common.py`); these
-  weights are gitignored, so obtain them out-of-band or retrain
+- A trained predictor in `Classifier/weights/`. The eval prefers the fully-trained
+  scheme-B judge `esm35m_b.pt` and falls back to `ghost_a.pt` if scheme B is absent
+  (see `CLASSIFIER_CKPT` in `eval/common.py`). These weights are gitignored, so
+  obtain them out-of-band or retrain
   (`python Classifier/train.py --scheme b --full-finetune --out Classifier/weights/esm35m_b.pt`).
 - Extra deps (already in `pyproject.toml`): `scikit-learn`, `scipy`, `rapidfuzz`.
 

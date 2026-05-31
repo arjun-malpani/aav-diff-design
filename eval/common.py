@@ -31,10 +31,19 @@ from tokenizer import AAVTokenizer              # noqa: E402  (diffusion/)
 import model as classifier_model                # noqa: E402  (Classifier/model.py)
 
 DIFFUSION_CKPT = ROOT / "diffusion" / "weights" / "diffusion.pt"
-CLASSIFIER_CKPT = ROOT / "Classifier" / "weights" / "ghost_a.pt"
 RAW_CSV = ROOT / "data" / "raw" / "bryant" / "allseqs_20191230.csv"
 DIFFUSION_DATA = ROOT / "data" / "processed" / "bryant" / "diffusion"
 FIGURES = Path(__file__).resolve().parent / "figures"
+
+# Held-out judge: prefer the fully-trained scheme-B predictor (esm35m_b.pt); fall
+# back to the scheme-A run (ghost_a.pt) if scheme B isn't present locally. Both are
+# gitignored, so which one resolves depends on what's on the machine.
+_CLASSIFIER_WEIGHTS = ROOT / "Classifier" / "weights"
+_JUDGE_PREFERENCE = ["esm35m_b.pt", "ghost_a.pt"]
+CLASSIFIER_CKPT = next(
+    (_CLASSIFIER_WEIGHTS / name for name in _JUDGE_PREFERENCE if (_CLASSIFIER_WEIGHTS / name).exists()),
+    _CLASSIFIER_WEIGHTS / _JUDGE_PREFERENCE[0],  # default path even if absent, for a clear error
+)
 
 # Anchor slots hold a clean token: one of 20 amino acids OR [gap] (a deletion at
 # that WT position). [mask] never survives sampling, so the anchor alphabet is 21.
