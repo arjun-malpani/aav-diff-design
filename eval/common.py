@@ -23,7 +23,7 @@ from rapidfuzz import process as rf_process
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "diffusion"))
-sys.path.insert(0, str(ROOT / "Classifier"))
+sys.path.insert(0, str(ROOT / "classifier"))
 
 from config import Config, TokenizerConfig      # noqa: E402  (diffusion/)
 from diffusion import DiffusionModel            # noqa: E402  (diffusion/)
@@ -38,7 +38,7 @@ FIGURES = Path(__file__).resolve().parent / "figures"
 # Held-out judge: prefer the fully-trained scheme-B predictor (esm35m_b.pt); fall
 # back to the scheme-A run (ghost_a.pt) if scheme B isn't present locally. Both are
 # gitignored, so which one resolves depends on what's on the machine.
-_CLASSIFIER_WEIGHTS = ROOT / "Classifier" / "weights"
+_CLASSIFIER_WEIGHTS = ROOT / "classifier" / "weights"
 _JUDGE_PREFERENCE = ["esm35m_b.pt", "ghost_a.pt"]
 CLASSIFIER_CKPT = next(
     (_CLASSIFIER_WEIGHTS / name for name in _JUDGE_PREFERENCE if (_CLASSIFIER_WEIGHTS / name).exists()),
