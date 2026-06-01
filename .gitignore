@@ -8,5 +8,5 @@ weights/
 .venv/
 runs/
 logs/
-eval/figures/
 eval/figures_old/
+eval/eval_full.log
