@@ -250,6 +250,19 @@ Cohorts: **conditioned** (CFG toward high fitness, shown at w=2 and w=4),
 **training** (real Bryant viable sequences). On MPS the full two-preset run takes
 roughly 1–2 hours; it is comfortable on a GPU.
 
+**Standalone analyses** (each writes only its own subfolder, runs independently):
+
+| Script | Produces | Notes |
+|--------|----------|-------|
+| `calibration.py` | `figures/calibration/` — requested vs. achieved fitness, swept over targets × guidance | tests whether the fitness knob is calibrated |
+| `predictor_report.py` | `figures/predictor/` — predictor parity on the test set + correlation-by-bin | evaluates the judge itself; shows its high-end saturation |
+| `tsne_by_score.py` | `figures/tsne_score/` — t-SNE colored by predicted fitness (side-by-side, overlap, hexbin) | caches generated arrays to `eval/data/`; re-plot instantly with `--reuse` |
+
+```bash
+python eval/tsne_by_score.py            # default n=10000 per cohort (GPU recommended)
+python eval/tsne_by_score.py --reuse    # re-plot from cached arrays, no regeneration
+```
+
 ## Model weights
 
 Training (`classifier/train.py`) writes checkpoints to `classifier/weights/`.
